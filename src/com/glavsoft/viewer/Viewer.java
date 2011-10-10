@@ -37,16 +37,27 @@ import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Vector;
 import java.util.logging.Logger;
 
 import javax.swing.Box;
 import javax.swing.JApplet;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -85,7 +96,7 @@ import com.glavsoft.viewer.swing.gui.OptionsDialog;
 import com.glavsoft.viewer.swing.gui.PasswordDialog;
 
 @SuppressWarnings("serial")
-public class Viewer extends JApplet implements Runnable, IViewerSessionManager, WindowListener {
+public class Viewer extends JApplet implements Runnable, IViewerSessionManager, WindowListener, ItemListener, ActionListener {
 	public static final String ARG_LOCAL_POINTER = "LocalPointer";
 	public static final String ARG_SCALING_FACTOR = "ScalingFactor";
 	public static final String ARG_COLOR_DEPTH = "ColorDepth";
@@ -102,8 +113,17 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 	public static final String ARG_HOST = "host";
 	public static final String ARG_HELP = "help";
 	public static final int DEFAULT_PORT = 5900;
+	public Map<String,String> extensionMap = new HashMap<String, String>();	
 
 	public static Logger logger = Logger.getLogger("com.glavsoft");;
+	
+	public Vector<Project> projects;
+	public Project currentProj;
+	private ViewerFrame frame;
+	private JComboBox projectComboBox;
+	private JComboBox itemComboBox;
+	private JButton btnLaunch;
+	private MessageQueue messageQueue;
 
 	/**
 	 * Ask user for password if needed
@@ -144,17 +164,65 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 			return passwordDialog.getPassword();
 		}
 	}
+	
+	public void saveProjects(){
+		try {
+			File f = new File(".projects");
+			if(!f.exists()){
+				f.createNewFile();
+			}
+			FileOutputStream config = new FileOutputStream(f);
+			ObjectOutputStream oos = new ObjectOutputStream(config);
+			oos.writeObject(this.projects);			
+			oos.close();
+			config.close();
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 
+	@SuppressWarnings("unchecked")
 	public static void main(String[] args) {
 		Parser parser = new Parser();
 		ParametersHandler.completeParserOptions(parser);
-
+		
 		parser.parse(args);
 		if (parser.isSet(ARG_HELP)) {
 			printUsage(parser.optionsUsage());
 			System.exit(0);
 		}
 		Viewer viewer = new Viewer(parser);
+		File f = new File(".projects");
+		if (f.exists()){
+			try {
+				FileInputStream config = new FileInputStream(f);		
+				ObjectInputStream configFile;
+				configFile = new ObjectInputStream(config);
+				viewer.projects = (Vector<Project>) configFile.readObject();
+				configFile.close();
+				config.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (ClassNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} 			
+		}else{
+			viewer.projects = new Vector<Project>();
+		}
+
+		viewer.extensionMap.put(".jpg","image");
+		viewer.extensionMap.put(".png","image");
+		viewer.extensionMap.put(".gif","image");
+		viewer.extensionMap.put(".mp4","image");
+		viewer.extensionMap.put(".avi","image");
+		viewer.extensionMap.put(".mpg","image");
+		
 		SwingUtilities.invokeLater(viewer);
 	}
 
@@ -286,8 +354,13 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 		super.start();
 	}
 
-	@Override
-	public void run() {
+	public void run(){
+		frame = new ViewerFrame(this);
+		frame.setVisible(true);	
+	}
+	
+	public void experiment() {
+		frame.setVisible(false);
 		tryAgain = true;
 		while (tryAgain) {
 			workingSocket = connectToHost(connectionParams);
@@ -357,7 +430,7 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 	}
 
 	private JFrame createContainer(final int width, final int height,
-			final MessageQueue messageQueue, final String title) {
+			 final MessageQueue messageQueue, final String title) {
 		JPanel outerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
 		outerPanel.add(surface);
 
@@ -405,119 +478,32 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 
 		Insets buttonsMargin = new Insets(2, 2, 2, 2);
 
-		JButton optionsButton = new JButton(Utils.getButtonIcon("options"));
-		optionsButton.setToolTipText("Set Options");
-		optionsButton.setMargin(buttonsMargin);
-		buttonBar.add(optionsButton);
-		optionsButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				showOptionsDialog(messageQueue);
-				setSurfaceToHandleKbdFocus();
-			}
-		});
-
-		JButton infoButton = new JButton(Utils.getButtonIcon("info"));
-		infoButton.setToolTipText("Show connection info");
-		infoButton.setMargin(buttonsMargin);
-		buttonBar.add(infoButton);
-		infoButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				showConnectionInfoMessage(title);
-				setSurfaceToHandleKbdFocus();
-			}
-		});
-
-		buttonBar.add(Box.createHorizontalStrut(10));
-		JButton refreshButton = new JButton(Utils.getButtonIcon("refresh"));
-		refreshButton.setToolTipText("Refresh screen");
-		refreshButton.setMargin(buttonsMargin);
-		buttonBar.add(refreshButton);
-		refreshButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				messageQueue.put(new FramebufferUpdateRequestMessage(0, 0,
-									surface.getWidth(), surface.getHeight(), false));
-				setSurfaceToHandleKbdFocus();
-			}
-		});
-
-		buttonBar.add(Box.createHorizontalStrut(10));
-		JButton ctrlAltDelButton = new JButton(Utils.getButtonIcon("ctrl-alt-del"));
-		ctrlAltDelButton.setToolTipText("Send 'Ctrl-Alt-Del'");
-		ctrlAltDelButton.setMargin(buttonsMargin);
-		buttonBar.add(ctrlAltDelButton);
-		ctrlAltDelButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				sendCtrlAltDel(messageQueue);
-				setSurfaceToHandleKbdFocus();
-			}
-		});
-		JButton textButton = new JButton();
-		textButton.setToolTipText("Send 'HI' as a message to the server");
-		textButton.setMargin(buttonsMargin);
-		buttonBar.add(textButton);
-		textButton.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent e){
-				messageQueue.put(new ClientCutTextMessage("alertdialog###asdasf\nimage###cmusv\nvideo###oz1"));
-			}
-		});
-		JButton winButton = new JButton(Utils.getButtonIcon("win"));
-		winButton.setToolTipText("Send 'Win' key as 'Ctrl-Esc'");
-		winButton.setMargin(buttonsMargin);
-		buttonBar.add(winButton);
-		winButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				sendWinKey(messageQueue);
-				setSurfaceToHandleKbdFocus();
-			}
-		});
-		JToggleButton ctrlButton = new JToggleButton(Utils.getButtonIcon("ctrl"));
-		ctrlButton.setMargin(buttonsMargin);
-		buttonBar.add(ctrlButton);
-		ctrlButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				setSurfaceToHandleKbdFocus();
-			}
-		});
-		ctrlButton.addItemListener(new ItemListener() {
-			@Override
-			public void itemStateChanged(ItemEvent e) {
-				if (e.getStateChange() == ItemEvent.SELECTED) {
-					messageQueue.put(new KeyEventMessage(KeyEventListener.K_CTRL_LEFT, true));
-				} else {
-					messageQueue.put(new KeyEventMessage(KeyEventListener.K_CTRL_LEFT, false));
-				}
-			}
-		});
-		JToggleButton altButton = new JToggleButton(Utils.getButtonIcon("alt"));
-		altButton.setMargin(buttonsMargin);
-		buttonBar.add(altButton);
-		altButton.addItemListener(new ItemListener() {
-			@Override
-			public void itemStateChanged(ItemEvent e) {
-				if (e.getStateChange() == ItemEvent.SELECTED) {
-					messageQueue.put(new KeyEventMessage(KeyEventListener.K_ALT_LEFT, true));
-				} else {
-					messageQueue.put(new KeyEventMessage(KeyEventListener.K_ALT_LEFT, false));
-				}
-			}
-		});
-		altButton.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				setSurfaceToHandleKbdFocus();
-			}
-		});
-		ModifierButtonEventListener modifierButtonListener =
-				new ModifierButtonEventListener();
-		modifierButtonListener.addButton(KeyEvent.VK_CONTROL, ctrlButton);
-		modifierButtonListener.addButton(KeyEvent.VK_ALT, altButton);
-		surface.addModifierListener(modifierButtonListener);
+		this.messageQueue = messageQueue;
+		
+		JLabel projectsLabel = new JLabel();
+		projectsLabel.setText("Project: ");
+		buttonBar.add(projectsLabel);
+		
+		projectComboBox = new JComboBox();
+		for(Project p : this.projects){
+			projectComboBox.addItem(p);
+		}
+		projectComboBox.addItemListener(this);
+		buttonBar.add(projectComboBox);
+		
+		JLabel itemsLabel = new JLabel();
+		itemsLabel.setText("Item: ");
+		buttonBar.add(itemsLabel);
+		
+		itemComboBox = new JComboBox();
+		itemComboBox.addItemListener(this);
+		buttonBar.add(itemComboBox);
+		
+		btnLaunch = new JButton();
+		btnLaunch.setText("Launch");
+		btnLaunch.addActionListener(this);
+		buttonBar.add(btnLaunch);
+		
 
 //		JButton fileTransferButton = new JButton(Utils.getButtonIcon("file-transfer"));
 //		fileTransferButton.setMargin(buttonsMargin);
@@ -693,5 +679,28 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 	public void windowActivated(WindowEvent e) { /* nop */ }
 	@Override
 	public void windowDeactivated(WindowEvent e) { /* nop */ }
+
+	@Override
+	public void actionPerformed(ActionEvent e) {
+		if(e.getSource() == btnLaunch){
+			String path = ((Project)projectComboBox.getSelectedItem()).name+"/"+itemComboBox.getSelectedItem();
+			int point = path.lastIndexOf(".");
+			String ext = path.substring(point+1,path.length()); 
+			
+			this.messageQueue.put(new ClientCutTextMessage(this.extensionMap.get(ext)+"###"+path));
+		}
+	}
+
+	@Override
+	public void itemStateChanged(ItemEvent e) {
+		if(e.getSource() == projectComboBox){
+			Project p = (Project) projectComboBox.getSelectedItem();
+			itemComboBox.removeAll();
+			for(String i: p.files){
+				itemComboBox.addItem(i);
+			}
+			itemComboBox.updateUI(); 
+		}
+	}
 
 }
