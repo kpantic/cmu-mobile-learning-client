@@ -34,7 +34,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
-import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
 import java.io.File;
@@ -61,7 +60,6 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
 
 import com.glavsoft.exceptions.AuthenticationFailedException;
@@ -71,8 +69,6 @@ import com.glavsoft.exceptions.UnsupportedProtocolVersionException;
 import com.glavsoft.exceptions.UnsupportedSecurityTypeException;
 import com.glavsoft.rfb.IPasswordRetriever;
 import com.glavsoft.rfb.client.ClientCutTextMessage;
-import com.glavsoft.rfb.client.ClientTextMessage;
-import com.glavsoft.rfb.client.FramebufferUpdateRequestMessage;
 import com.glavsoft.rfb.client.KeyEventMessage;
 import com.glavsoft.rfb.client.SetEncodingsMessage;
 import com.glavsoft.rfb.encoding.decoder.DecodersContainer;
@@ -86,7 +82,6 @@ import com.glavsoft.utils.Strings;
 import com.glavsoft.viewer.cli.Parser;
 import com.glavsoft.viewer.swing.ClipboardControllerImpl;
 import com.glavsoft.viewer.swing.KeyEventListener;
-import com.glavsoft.viewer.swing.ModifierButtonEventListener;
 import com.glavsoft.viewer.swing.ParametersHandler;
 import com.glavsoft.viewer.swing.ParametersHandler.ConnectionParams;
 import com.glavsoft.viewer.swing.Surface;
@@ -123,6 +118,8 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 	private JComboBox projectComboBox;
 	private JComboBox itemComboBox;
 	private JButton btnLaunch;
+	private JButton btnTest;
+	private JButton btnTest2;
 	private MessageQueue messageQueue;
 
 	/**
@@ -216,12 +213,12 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 			viewer.projects = new Vector<Project>();
 		}
 
-		viewer.extensionMap.put(".jpg","image");
-		viewer.extensionMap.put(".png","image");
-		viewer.extensionMap.put(".gif","image");
-		viewer.extensionMap.put(".mp4","image");
-		viewer.extensionMap.put(".avi","image");
-		viewer.extensionMap.put(".mpg","image");
+		viewer.extensionMap.put("jpg","image");
+		viewer.extensionMap.put("png","image");
+		viewer.extensionMap.put("gif","image");
+		viewer.extensionMap.put("mp4","video");
+		viewer.extensionMap.put("avi","video");
+		viewer.extensionMap.put("mpg","video");
 		
 		SwingUtilities.invokeLater(viewer);
 	}
@@ -496,6 +493,11 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 		buttonBar.add(itemsLabel);
 		
 		itemComboBox = new JComboBox();
+		if(this.projects.size() > 0){
+			for(Action i: this.projects.get(0).actions){
+				itemComboBox.addItem(i);
+			}
+		}
 		itemComboBox.addItemListener(this);
 		buttonBar.add(itemComboBox);
 		
@@ -504,6 +506,15 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 		btnLaunch.addActionListener(this);
 		buttonBar.add(btnLaunch);
 		
+		btnTest = new JButton();
+		btnTest.setText("ObjectTest");
+		btnTest.addActionListener(this);
+		buttonBar.add(btnTest);
+		
+		btnTest2 = new JButton();
+		btnTest2.setText("ObjectTest2");
+		btnTest2.addActionListener(this);
+		buttonBar.add(btnTest2);
 
 //		JButton fileTransferButton = new JButton(Utils.getButtonIcon("file-transfer"));
 //		fileTransferButton.setMargin(buttonsMargin);
@@ -682,12 +693,12 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 
 	@Override
 	public void actionPerformed(ActionEvent e) {
-		if(e.getSource() == btnLaunch){
-			String path = ((Project)projectComboBox.getSelectedItem()).name+"/"+itemComboBox.getSelectedItem();
-			int point = path.lastIndexOf(".");
-			String ext = path.substring(point+1,path.length()); 
-			
-			this.messageQueue.put(new ClientCutTextMessage(this.extensionMap.get(ext)+"###"+path));
+		if(e.getSource() == btnLaunch){ 
+			this.messageQueue.put(new ClientCutTextMessage(((Action)itemComboBox.getSelectedItem()).toJSON(((Project)projectComboBox.getSelectedItem()).name,this.extensionMap)));						
+		}else if(e.getSource() == btnTest){
+			this.messageQueue.put(new ClientCutTextMessage("image###{'filename':'androidimage.png','buttons':[{'x':0.0,'y':40,'width':200,'height':100,'action':'alertdialog###TESTING'}]}"));
+		}else if(e.getSource() == btnTest2){
+			this.messageQueue.put(new ClientCutTextMessage("image###{'filename':'oz.png','buttons':[{'x':0.0,'y':40,'width':200,'height':100,'action':'alertdialog###TESTING'}]}"));
 		}
 	}
 
@@ -695,8 +706,8 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 	public void itemStateChanged(ItemEvent e) {
 		if(e.getSource() == projectComboBox){
 			Project p = (Project) projectComboBox.getSelectedItem();
-			itemComboBox.removeAll();
-			for(String i: p.files){
+			itemComboBox.removeAllItems();
+			for(Action i: p.actions){
 				itemComboBox.addItem(i);
 			}
 			itemComboBox.updateUI(); 
