@@ -9,11 +9,10 @@ import org.json.JSONObject;
 public class Action implements Serializable {
 
 	private static final long serialVersionUID = -667831962619771227L;
-	String filename;
-	public OzArrayList buttons = new OzArrayList();
+	String name;	
 	
 	public Action(String file) {
-		filename = file;
+		name = file;
 	}
 
 	public Action() {
@@ -21,38 +20,18 @@ public class Action implements Serializable {
 	}
 
 	public String toString(){
-		return filename;		
+		return name;		
 	}
 	
-	public String toJSON(String project, Map<String,String> extensionMap){
+	public String toJSON(String phase){
 		JSONObject json = new JSONObject();
 		try {
-			json.put("filename", project+"/"+filename);
-			for(Rectangle b : buttons){
-				if(b != null){
-					json.append("buttons", b.toJSONObject(project, extensionMap));
-				}
-			}
+			json.put("action_name", name);
+			json.put("phase_name", phase);
 		} catch (JSONException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		int point = filename.lastIndexOf(".");
-		String ext = filename.substring(point+1,filename.length()); 
-		return extensionMap.get(ext)+"###"+json.toString();
+		return json.toString();		
 	}
-	
-	public String toSmallJSON(String project, Map<String,String> extensionMap){
-		JSONObject json = new JSONObject();
-		try {
-			json.put("filename", project+"/"+filename);
-		} catch (JSONException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		int point = filename.lastIndexOf(".");
-		String ext = filename.substring(point+1,filename.length()); 
-		return extensionMap.get(ext)+"###"+json.toString();
-	}
-
 }

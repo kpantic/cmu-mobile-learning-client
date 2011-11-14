@@ -28,6 +28,7 @@ import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
+import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
@@ -45,6 +46,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,19 +109,15 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 	public static final String ARG_PORT = "port";
 	public static final String ARG_HOST = "host";
 	public static final String ARG_HELP = "help";
-	public static final int DEFAULT_PORT = 5900;
-	public Map<String,String> extensionMap = new HashMap<String, String>();	
+	public static final int DEFAULT_PORT = 5900;	
 
 	public static Logger logger = Logger.getLogger("com.glavsoft");;
 	
-	public Vector<Project> projects;
-	public Project currentProj;
-	private ViewerFrame frame;
+	public ArrayList<Phase> phases = new ArrayList<Phase>();
 	private JComboBox projectComboBox;
 	private JComboBox itemComboBox;
 	private JButton btnLaunch;
-	private JButton btnTest;
-	private JButton btnTest2;
+	private JButton btnChangePhase;
 	private MessageQueue messageQueue;
 
 	/**
@@ -170,7 +168,7 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 			}
 			FileOutputStream config = new FileOutputStream(f);
 			ObjectOutputStream oos = new ObjectOutputStream(config);
-			oos.writeObject(this.projects);			
+			oos.writeObject(this.phases);			
 			oos.close();
 			config.close();
 		} catch (FileNotFoundException e) {
@@ -193,6 +191,7 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 			System.exit(0);
 		}
 		Viewer viewer = new Viewer(parser);
+		/*
 		File f = new File(".projects");
 		if (f.exists()){
 			try {
@@ -212,14 +211,14 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 		}else{
 			viewer.projects = new Vector<Project>();
 		}
-
+		
 		viewer.extensionMap.put("jpg","image");
 		viewer.extensionMap.put("png","image");
 		viewer.extensionMap.put("gif","image");
 		viewer.extensionMap.put("mp4","video");
 		viewer.extensionMap.put("avi","video");
 		viewer.extensionMap.put("mpg","video");
-		
+		*/
 		SwingUtilities.invokeLater(viewer);
 	}
 
@@ -352,12 +351,29 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 	}
 
 	public void run(){
-		frame = new ViewerFrame(this);
-		frame.setVisible(true);	
+		Phase test = new Phase("Phase 1");
+		test.actions.add(new Action("Wrong action"));
+		test.actions.add(new Action("Right action"));
+		this.phases.add(test);
+		Phase test2 = new Phase("Phase 2");
+		test2.actions.add(new Action("Wrong action"));
+		test2.actions.add(new Action("Right action"));
+		this.phases.add(test2);
+		Phase test3 = new Phase("Phase 3");
+		test3.actions.add(new Action("Wrong action"));
+		test3.actions.add(new Action("Right action"));
+		this.phases.add(test3);
+		Phase test4 = new Phase("Phase 4");
+		test4.actions.add(new Action("Wrong action"));
+		test4.actions.add(new Action("Right action"));
+		this.phases.add(test4);
+		experiment();
+		//frame = new ViewerFrame(this);
+		//frame.setVisible(true);	
 	}
 	
 	public void experiment() {
-		frame.setVisible(false);
+
 		tryAgain = true;
 		while (tryAgain) {
 			workingSocket = connectToHost(connectionParams);
@@ -471,30 +487,35 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 
 	protected void createButtonsPanel(final MessageQueue messageQueue,
 			final String title, Container container) {
-		JPanel buttonBar = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 1));
+		JPanel buttonBar = new JPanel(new GridLayout(20, 1));
 
 		Insets buttonsMargin = new Insets(2, 2, 2, 2);
 
 		this.messageQueue = messageQueue;
 		
 		JLabel projectsLabel = new JLabel();
-		projectsLabel.setText("Project: ");
+		projectsLabel.setText("Phase: ");
 		buttonBar.add(projectsLabel);
 		
 		projectComboBox = new JComboBox();
-		for(Project p : this.projects){
+		for(Phase p : this.phases){
 			projectComboBox.addItem(p);
 		}
 		projectComboBox.addItemListener(this);
 		buttonBar.add(projectComboBox);
 		
+		btnChangePhase = new JButton();
+		btnChangePhase.setText("Change to Phase");
+		btnChangePhase.addActionListener(this);
+		buttonBar.add(btnChangePhase);
+		
 		JLabel itemsLabel = new JLabel();
-		itemsLabel.setText("Item: ");
+		itemsLabel.setText("Actions: ");
 		buttonBar.add(itemsLabel);
 		
 		itemComboBox = new JComboBox();
-		if(this.projects.size() > 0){
-			for(Action i: this.projects.get(0).actions){
+		if(this.phases.size() > 0){
+			for(Action i: this.phases.get(0).actions){
 				itemComboBox.addItem(i);
 			}
 		}
@@ -505,20 +526,6 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 		btnLaunch.setText("Launch");
 		btnLaunch.addActionListener(this);
 		buttonBar.add(btnLaunch);
-		
-		btnTest = new JButton();
-		btnTest.setText("ObjectTest");
-		btnTest.addActionListener(this);
-		buttonBar.add(btnTest);
-		
-		btnTest2 = new JButton();
-		btnTest2.setText("ObjectTest2");
-		btnTest2.addActionListener(this);
-		buttonBar.add(btnTest2);
-
-//		JButton fileTransferButton = new JButton(Utils.getButtonIcon("file-transfer"));
-//		fileTransferButton.setMargin(buttonsMargin);
-//		buttonBar.add(fileTransferButton);
 
 		buttonBar.add(Box.createHorizontalStrut(10));
 
@@ -534,7 +541,7 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 			}
 		});
 
-		container.add(buttonBar, BorderLayout.NORTH);
+		container.add(buttonBar, BorderLayout.EAST);
 	}
 
 	protected void setSurfaceToHandleKbdFocus() {
@@ -694,18 +701,17 @@ public class Viewer extends JApplet implements Runnable, IViewerSessionManager, 
 	@Override
 	public void actionPerformed(ActionEvent e) {
 		if(e.getSource() == btnLaunch){ 
-			this.messageQueue.put(new ClientCutTextMessage(((Action)itemComboBox.getSelectedItem()).toJSON(((Project)projectComboBox.getSelectedItem()).name,this.extensionMap)));						
-		}else if(e.getSource() == btnTest){
-			this.messageQueue.put(new ClientCutTextMessage("image###{'filename':'androidimage.png','buttons':[{'x':0.0,'y':40,'width':200,'height':100,'action':'alertdialog###TESTING'}]}"));
-		}else if(e.getSource() == btnTest2){
-			this.messageQueue.put(new ClientCutTextMessage("image###{'filename':'oz.png','buttons':[{'x':0.0,'y':40,'width':200,'height':100,'action':'alertdialog###TESTING'}]}"));
+			this.messageQueue.put(new ClientCutTextMessage(((Action)itemComboBox.getSelectedItem()).toJSON(((Phase)projectComboBox.getSelectedItem()).name)));						
+		}else if(e.getSource() == btnChangePhase){
+			this.messageQueue.put(new ClientCutTextMessage(((Phase)projectComboBox.getSelectedItem()).toJSON()));
 		}
+		
 	}
 
 	@Override
 	public void itemStateChanged(ItemEvent e) {
 		if(e.getSource() == projectComboBox){
-			Project p = (Project) projectComboBox.getSelectedItem();
+			Phase p = (Phase) projectComboBox.getSelectedItem();
 			itemComboBox.removeAllItems();
 			for(Action i: p.actions){
 				itemComboBox.addItem(i);
